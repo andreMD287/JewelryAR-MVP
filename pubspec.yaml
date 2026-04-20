@@ -52,6 +52,10 @@ dependencies:
   # Álgebra vectorial — requerida explícitamente por ARNode (Vector3/Vector4)
   vector_math: ^2.1.0
 
+  # MediaPipe Hand Landmarker via JNI — tracking 3D de manos (Android-only)
+  # 21 landmarks con coordenadas x,y,z normalizadas. Landmark 5 = Index MCP.
+  hand_landmarker: ^2.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
