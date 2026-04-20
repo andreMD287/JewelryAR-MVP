@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'screens/ar_hand_screen.dart';
 import 'screens/ar_face_screen.dart';
+import 'screens/model_viewer_screen.dart';
 
 void main() {
   runApp(const JewelryARApp());
@@ -22,10 +23,12 @@ class JewelryARApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const HomeScreen(),
-        // Pantalla AR manos — integrará ar_flutter_plugin_2 + detección de manos
+        // AR manos — integrará ar_flutter_plugin_2 + detección de manos
         '/ar-hands': (context) => const ARHandScreen(),
-        // Pantalla AR rostro — integrará google_mlkit_face_detection + ar_flutter_plugin_2
+        // AR rostro — integrará google_mlkit_face_detection + ar_flutter_plugin_2
         '/ar-face': (context) => const ARFaceScreen(),
+        // Visor 3D con PBR + botón "Ver en AR" (ARPlacementScreen)
+        '/model-viewer': (context) => const ModelViewerScreen(),
       },
     );
   }

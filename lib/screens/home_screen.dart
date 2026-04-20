@@ -53,21 +53,14 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Botón 3: Visor de modelo 3D estático sin AR
-            // Tecnología a integrar: model_viewer_plus con archivos glTF/GLB
+            // Botón 3: Visor de modelo 3D con PBR + AR
+            // Tecnologías: model_viewer_plus (visor WebView) + ar_flutter_plugin_2 (colocación AR)
             _AROptionButton(
               icon: Icons.view_in_ar,
-              label: 'Test Modelo 3D Estático',
-              description: 'Visualiza un modelo 3D interactivo de joya',
+              label: 'Test Modelo 3D + AR',
+              description: 'PBR rendering y colocación en superficie real',
               color: const Color(0xFF2E7D5E),
-              onTap: () {
-                // TODO: navegar al visor de modelo 3D (model_viewer_plus)
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Visor 3D — próximamente con model_viewer_plus'),
-                  ),
-                );
-              },
+              onTap: () => Navigator.pushNamed(context, '/model-viewer'),
             ),
           ],
         ),
@@ -121,7 +114,7 @@ class _AROptionButton extends StatelessWidget {
                     Text(
                       description,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         fontSize: 13,
                       ),
                     ),
