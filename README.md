@@ -11,7 +11,7 @@ Una app Flutter que actúa como laboratorio de pruebas para tres tecnologías de
 | Pantalla | Tecnología | Pregunta que responde |
 |----------|------------|----------------------|
 | **Test Modelo 3D + AR** | `model_viewer_plus` + `ar_flutter_plugin_2` | ¿Se renderiza PBR correctamente? ¿ARCore/ARKit coloca objetos en superficies reales? |
-| **Test AR Manos** | `hand_landmarker` (MediaPipe via JNI) | ¿Podemos obtener la posición 3D del nudillo del índice en tiempo real desde Flutter? |
+| **Test AR Manos** | `hand_landmarker` (MediaPipe via JNI) | ¿Podemos obtener la posición 3D de la muñeca (WRIST — punto 0) en tiempo real para anclar pulseras? |
 | **Test AR Rostro** | `google_mlkit_face_detection` | ¿Podemos detectar landmarks de orejas para anclar aretes? |
 
 ---
@@ -97,7 +97,9 @@ scanning ──(3s)──► ready ──(tap en plano)──► placed
 ## Pantalla 3 — Tracking de manos (`ARHandScreen`)
 
 ### Qué se prueba
-**Pregunta central: ¿Podemos obtener la posición 3D del nudillo del dedo índice (punto 5 en la topología de MediaPipe Hands) en tiempo real desde Flutter?**
+**Pregunta central: ¿Podemos obtener la posición 3D de la muñeca (WRIST — punto 0 en la topología de MediaPipe Hands) en tiempo real desde Flutter para anclar pulseras?**
+
+> **Scope de joyas:** pulseras ✅ · aretes ✅ · collares ✅ · anillos ❌ *(fuera de scope — requieren landmark 5 Index MCP, mayor complejidad de tracking en dedo)*
 
 ### Investigación de opciones (pub.dev, abril 2026)
 
@@ -106,7 +108,7 @@ scanning ──(3s)──► ready ──(tap en plano)──► placed
 | **A** | `google_mediapipe` (oficial) | ❌ No existe | Google no ha publicado un paquete oficial de MediaPipe para Flutter mobile con hand tracking |
 | **B** | `hand_landmarker` 2.2.0 | ✅ **Elegida** | MediaPipe real via JNI, acepta `CameraImage` directamente, da 3D coords, GPU delegate |
 | **C** | `hand_detection` 2.0.9 | 🟡 Candidato iOS | TFLite + Mat, cross-platform, pero requiere conversión manual YUV→BGR con opencv_dart |
-| **D** | `google_mlkit_pose_detection` | ⚠️ Fallback | Solo detecta muñeca (no dedos individuales) — insuficiente para anclar anillos |
+| **D** | `google_mlkit_pose_detection` | ⚠️ Fallback parcial | Detecta muñeca (landmark corporal) — suficiente para pulseras, insuficiente para aretes/collares |
 | **E** | `hand_landmarker_mediapipe` | ❌ Descartada | v0.0.1, 83 descargas, GPL-3.0 — demasiado inmaduro |
 
 ### Tecnología elegida: `hand_landmarker` 2.2.0
@@ -127,19 +129,19 @@ final plugin = HandLandmarkerPlugin.create(
 // Detección en cada frame de cámara
 final List<Hand> hands = plugin.detect(cameraImage, sensorOrientation);
 
-// Acceso al landmark 5 (Index MCP = nudillo del índice)
-final Landmark mcp = hands[0].landmarks[5];
-print('x=${mcp.x}  y=${mcp.y}  z=${mcp.z}');
-// → x=0.4821  y=0.3107  z=-0.0234
+// Acceso al landmark 0 (WRIST = muñeca — ancla para pulseras)
+final Landmark wrist = hands[0].landmarks[0];
+print('x=${wrist.x}  y=${wrist.y}  z=${wrist.z}');
+// → x=0.4821  y=0.7302  z=-0.0012
 ```
 
 ### Topología MediaPipe Hands (21 landmarks)
 ```
-WRIST (0)
+WRIST (0)   ← Punto 0 = ancla de pulsera  ◉
 ├── THUMB: CMC(1) → MCP(2) → IP(3) → TIP(4)
-├── INDEX: MCP(5) → PIP(6) → DIP(7) → TIP(8)   ← Punto 5 = ancla de joya
+├── INDEX: MCP(5) → PIP(6) → DIP(7) → TIP(8)
 ├── MIDDLE: MCP(9) → PIP(10) → DIP(11) → TIP(12)
-├── RING: MCP(13) → PIP(14) → DIP(15) → TIP(16)
+├── RING finger: MCP(13) → PIP(14) → DIP(15) → TIP(16)  [dedo anular — no joya]
 └── PINKY: MCP(17) → PIP(18) → DIP(19) → TIP(20)
 ```
 
@@ -148,10 +150,10 @@ WRIST (0)
 |-----|-------------|-------|
 | `x` | Posición horizontal en imagen | 0.0 (izquierda) → 1.0 (derecha) |
 | `y` | Posición vertical en imagen | 0.0 (arriba) → 1.0 (abajo) |
-| `z` | Profundidad relativa al nudo (wrist) | negativo = más cerca de cámara |
+| `z` | Profundidad relativa a la muñeca (wrist) | negativo = más cerca de cámara |
 
 ### Respuesta a la pregunta central
-> **Sí en Android**: `hand_landmarker` expone `x`, `y`, `z` normalizados del nudillo del índice en tiempo real con delegate GPU (~10 FPS en implementación actual).  
+> **Sí en Android**: `hand_landmarker` expone `x`, `y`, `z` normalizados de la muñeca (WRIST — punto 0) en tiempo real con delegate GPU (~10 FPS en implementación actual).  
 > **No en iOS aún**: la integración JNI de este plugin es Android-only. Para iOS, la alternativa es `hand_detection` (TFLite) o ARKit Hand Anchors via método nativo.
 
 ### Limitación de rendimiento conocida

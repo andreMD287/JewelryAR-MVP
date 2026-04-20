@@ -22,10 +22,11 @@
 //
 // Opción D — google_mlkit_pose_detection 0.14.1 (fallback documentado):
 //   Detecta muñeca como parte del esqueleto corporal (landmarks 15-16),
-//   pero NO da landmarks individuales de dedos. Insuficiente para anclar anillos.
+//   pero NO da landmarks individuales de dedos. Suficiente solo para pulseras
+//   (si la muñeca es el único anchor necesario), insuficiente para aretes.
 //
 // RESPUESTA AL OBJETIVO:
-//   ¿Podemos obtener posición 3D del nudillo del índice (punto 5) desde Flutter?
+//   ¿Podemos obtener posición 3D de la muñeca (WRIST — punto 0) desde Flutter?
 //   → SÍ en Android: hand_landmarker expone x, y, z normalizados en tiempo real.
 //   → NO en iOS aún: requiere integración adicional (ARKit Hand Anchors o TFLite).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,9 +54,10 @@ const List<(int, int)> _kConnections = [
   (5, 9), (9, 13), (13, 17),
 ];
 
-// Landmark 5 = Index Finger MCP (primera articulación/nudillo del índice).
-// Punto de anclaje para anillos y pulseras en el MVP.
-const int _kIndexMCP = 5;
+// Landmark 0 = WRIST (muñeca).
+// Punto de anclaje para pulseras en el MVP.
+// NOTA: anillos están fuera de scope (requieren landmark 5 — Index MCP).
+const int _kWrist = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -214,11 +216,11 @@ class _ARHandScreenState extends State<ARHandScreen> {
     super.dispose();
   }
 
-  // ── Coordenadas del Index MCP (landmark 5) del primer hand detectado ──────
-  Landmark? get _indexMCP {
+  // ── Coordenadas de la muñeca (WRIST — landmark 0) del primer hand detectado ─
+  Landmark? get _wrist {
     if (_currentHands.isEmpty) return null;
     final lm = _currentHands[0].landmarks;
-    return lm.length > _kIndexMCP ? lm[_kIndexMCP] : null;
+    return lm.isNotEmpty ? lm[_kWrist] : null;
   }
 
   @override
@@ -278,7 +280,7 @@ class _ARHandScreenState extends State<ARHandScreen> {
 
     final isBack = cam.description.lensDirection == CameraLensDirection.back;
     final totalLandmarks = _currentHands.fold<int>(0, (s, h) => s + h.landmarks.length);
-    final mcp = _indexMCP;
+    final wrist = _wrist;
 
     return Stack(
       fit: StackFit.expand,
@@ -345,13 +347,13 @@ class _ARHandScreenState extends State<ARHandScreen> {
           ),
         ),
 
-        // ── Panel de coordenadas del Index MCP ───────────────────────────
+        // ── Panel de coordenadas de la muñeca (WRIST) ───────────────────
         Positioned(
           bottom: 36,
           left: 16,
           right: 16,
-          child: mcp != null
-              ? _CoordPanel(mcp: mcp)
+          child: wrist != null
+              ? _CoordPanel(mcp: wrist)
               : const Center(
                   child: Text(
                     'Apunta la cámara hacia una mano abierta',
@@ -411,7 +413,7 @@ class _ARHandScreenState extends State<ARHandScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CustomPainter: dibuja esqueleto de mano + destacado del Index MCP
+// CustomPainter: dibuja esqueleto de mano + destacado de la muñeca (WRIST)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HandPainter extends CustomPainter {
@@ -440,12 +442,12 @@ class _HandPainter extends CustomPainter {
       ..color = Colors.white
       ..style = PaintingStyle.fill;
 
-    // Dorado para el Index MCP (punto de anclaje de la joya)
-    final mcpFill = Paint()
+    // Dorado para la muñeca (WRIST — punto de anclaje de la pulsera)
+    final wristFill = Paint()
       ..color = const Color(0xFFD4A017)
       ..style = PaintingStyle.fill;
 
-    final mcpRing = Paint()
+    final wristRing = Paint()
       ..color = const Color(0xFFFFD700)
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke;
@@ -460,25 +462,25 @@ class _HandPainter extends CustomPainter {
         canvas.drawLine(_toCanvas(lm[a], size), _toCanvas(lm[b], size), bonePaint);
       }
 
-      // ── Todos los landmarks (excluyendo Index MCP para dibujar encima) ─
+      // ── Todos los landmarks (excluyendo WRIST para dibujar encima) ─────
       for (int i = 0; i < lm.length; i++) {
-        if (i == _kIndexMCP) continue;
+        if (i == _kWrist) continue;
         canvas.drawCircle(_toCanvas(lm[i], size), 5, dotPaint);
       }
 
-      // ── Index MCP (landmark 5) — punto de anclaje para anillo/pulsera ──
-      if (lm.length > _kIndexMCP) {
-        final pos = _toCanvas(lm[_kIndexMCP], size);
+      // ── WRIST (landmark 0) — punto de anclaje para pulsera ───────────
+      if (lm.isNotEmpty) {
+        final pos = _toCanvas(lm[_kWrist], size);
 
-        // Halo exterior (simula dónde iría la joya)
-        canvas.drawCircle(pos, 20, mcpRing);
+        // Halo exterior (simula dónde iría la pulsera en la muñeca)
+        canvas.drawCircle(pos, 20, wristRing);
         // Relleno dorado
-        canvas.drawCircle(pos, 11, mcpFill);
+        canvas.drawCircle(pos, 11, wristFill);
         // Punto blanco central
         canvas.drawCircle(pos, 3.5, dotPaint);
 
         // Etiqueta flotante
-        _drawLabel(canvas, pos, '♦ Anillo / Pulsera');
+        _drawLabel(canvas, pos, '◉ Pulsera');
       }
     }
   }
@@ -513,7 +515,7 @@ class _HandPainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Panel de coordenadas 3D del Index MCP
+// Panel de coordenadas 3D de la muñeca (WRIST — landmark 0)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CoordPanel extends StatelessWidget {
@@ -539,7 +541,7 @@ class _CoordPanel extends StatelessWidget {
               Icon(Icons.circle, color: Color(0xFFFFD700), size: 10),
               SizedBox(width: 6),
               Text(
-                'Index MCP — Landmark 5  (posición de joya)',
+                'WRIST — Landmark 0  (ancla de pulsera)',
                 style: TextStyle(
                   color: Color(0xFFFFD700),
                   fontWeight: FontWeight.bold,
@@ -554,14 +556,14 @@ class _CoordPanel extends StatelessWidget {
             children: [
               _CoordValue(axis: 'X', value: mcp.x, color: Colors.redAccent),
               _CoordValue(axis: 'Y', value: mcp.y, color: Colors.greenAccent),
-              // z = profundidad relativa al nudo (normalizada).
+              // z = profundidad relativa a la muñeca (normalizada).
               // Negativo = más cerca de la cámara; positivo = más lejos.
               _CoordValue(axis: 'Z (depth)', value: mcp.z, color: Colors.blueAccent),
             ],
           ),
           const SizedBox(height: 6),
           const Text(
-            'Coords normalizadas [0-1] · z = profundidad relativa al nudo',
+            'Coords normalizadas [0-1] · z = profundidad relativa a la muñeca',
             style: TextStyle(color: Colors.white38, fontSize: 10),
             textAlign: TextAlign.center,
           ),
