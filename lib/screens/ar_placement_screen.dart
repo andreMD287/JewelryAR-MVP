@@ -10,6 +10,7 @@ import 'package:ar_flutter_plugin_2/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin_2/managers/ar_object_manager.dart';
 import 'package:ar_flutter_plugin_2/managers/ar_session_manager.dart';
 import 'package:ar_flutter_plugin_2/models/ar_anchor.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:ar_flutter_plugin_2/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin_2/models/ar_node.dart';
 import 'package:vector_math/vector_math_64.dart' hide Colors;
@@ -38,6 +39,9 @@ enum _ARState {
 }
 
 class _ARPlacementScreenState extends State<ARPlacementScreen> {
+
+  bool _hasCameraPermission = false;
+
   _ARState _state = _ARState.scanning;
   String _errorMessage = '';
 
@@ -45,9 +49,36 @@ class _ARPlacementScreenState extends State<ARPlacementScreen> {
   ARObjectManager? _arObjectManager;
   ARAnchorManager? _arAnchorManager;
 
-  // Rastreo de nodos y anclas para poder reiniciar la colocación
   final List<ARNode> _nodes = [];
   final List<ARAnchor> _anchors = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    var status = await Permission.camera.status;
+    setState(() {
+      _hasCameraPermission = status.isGranted;
+    });
+  }
+
+  Future<void> requestCamera() async {
+    var status = await Permission.camera.request();
+
+    print("Camera status: $status");
+
+    if (status.isGranted) {
+      setState(() {
+        _hasCameraPermission = true;
+      });
+    } else if (status.isPermanentlyDenied) {
+      // iOS bloqueó el permiso → toca abrir settings
+      await openAppSettings();
+    }
+  }
 
   @override
   void dispose() {
@@ -66,7 +97,7 @@ class _ARPlacementScreenState extends State<ARPlacementScreen> {
     _arObjectManager = arObjectManager;
     _arAnchorManager = arAnchorManager;
 
-    // Inicializamos la sesión en un método async separado para manejar errores
+    // Inicializamos la sesión en un metodo async separado para manejar errores
     _initSession(arSessionManager, arObjectManager);
   }
 
@@ -186,17 +217,20 @@ class _ARPlacementScreenState extends State<ARPlacementScreen> {
       body: Stack(
         children: [
           // ── Vista AR o pantalla de error ─────────────────────────────────
-          if (isErrorState)
+          // ── Vista AR / permisos / error ─────────────────────────────────
+          if (!_hasCameraPermission)
+            _buildPermissionView()
+          else if (isErrorState)
             _buildErrorView()
           else
             ARView(
               onARViewCreated: _onARViewCreated,
               planeDetectionConfig:
-                  PlaneDetectionConfig.horizontalAndVertical,
+              PlaneDetectionConfig.horizontalAndVertical,
             ),
 
           // ── Overlay de instrucciones (solo en estados AR activos) ─────────
-          if (!isErrorState) _buildOverlay(),
+          if (!isErrorState && _hasCameraPermission) _buildOverlay(),
         ],
       ),
     );
@@ -309,6 +343,31 @@ class _ARPlacementScreenState extends State<ARPlacementScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPermissionView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.camera_alt, color: Colors.white, size: 60),
+          const SizedBox(height: 20),
+          const Text(
+            "Se necesita acceso a la cámara para usar AR",
+            style: TextStyle(color: Colors.white, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () async {
+              await requestCamera();
+              await _checkPermission();
+            },
+            child: const Text("Grant Permission"),
+          ),
+        ],
       ),
     );
   }
