@@ -77,6 +77,7 @@ class _ARPlacementScreenState extends State<ARPlacementScreen> {
     } else if (status.isPermanentlyDenied) {
       // iOS bloqueó el permiso → toca abrir settings
       await openAppSettings();
+      await _checkPermission(); // re-verificar al volver de Ajustes
     }
   }
 
